@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace PHPTdGram\SchemaGenerator;
 
 use PHPTdGram\SchemaGenerator\Model\ClassDefinition;
+use Nette\PhpGenerator\Dumper;
 use Symfony\Component\Console\Output\OutputInterface;
 
 /**
@@ -12,24 +13,24 @@ use Symfony\Component\Console\Output\OutputInterface;
  */
 class SchemaParser
 {
-    public const TL_API_SOURCE_URL = 'https://raw.githubusercontent.com/tdlib/td/v1.6.0/td/generate/scheme/td_api.tl';
+    private array $classes;
+
+    private string $currentLine;
+
+    private int $currentLineNr;
+
+    private Dumper $dumper;
 
     private OutputInterface $output;
 
-    private string          $schemaFile;
-    private string          $rawSchema;
-    private string          $currentLine;
-    private int             $currentLineNr;
-    private array           $documentation;
-    private array           $classes;
+    private string $rawSchema;
 
     public function __construct(OutputInterface $output, string $schemaFile = null)
     {
-        $this->output        = $output;
-        $this->schemaFile    = $schemaFile ?? static::TL_API_SOURCE_URL;
-        $this->rawSchema     = file_get_contents($this->schemaFile);
-        $this->documentation = [];
-        $this->classes       = [];
+        $this->output = $output;
+        $this->rawSchema = file_get_contents($schemaFile);
+        $this->classes = [];
+        $this->dumper = new Dumper();
     }
 
     /**
@@ -39,12 +40,12 @@ class SchemaParser
     {
         $lines = explode(PHP_EOL, $this->rawSchema);
 
-        $description          = '';
-        $currentClassName     = '';
-        $currentClass         = new ClassDefinition();
-        $isFunction           = false;
+        $description = '';
+        $currentClassName = '';
+        $currentClass = new ClassDefinition();
+        $isFunction = false;
         $needClassDescription = false;
-        $this->currentLineNr  = 0;
+        $this->currentLineNr = 0;
 
         foreach ($lines as $line) {
             $this->currentLine = $line;
@@ -53,9 +54,9 @@ class SchemaParser
             if ('---types---' === $line) {
                 $isFunction = false;
             } elseif ('---functions---' === $line) {
-                $isFunction           = true;
-                $currentClassName     = '';
-                $currentClass         = new ClassDefinition();
+                $isFunction = true;
+                $currentClassName = '';
+                $currentClass = new ClassDefinition();
                 $needClassDescription = false;
             } elseif (($line[0] ?? '') === '/') {
                 if (($line[1] ?? '') !== '/') {
@@ -92,18 +93,18 @@ class SchemaParser
                 $info = [];
                 foreach ($docs as $doc) {
                     [$key, $value] = explode(' ', $doc, 2);
-                    $value         = trim($value);
+                    $value = trim($value);
 
                     if ($needClassDescription) {
                         if ('description' === $key) {
                             $needClassDescription = false;
 
-                            $currentClass->classDocs   = $value;
+                            $currentClass->classDocs = $value;
                             $currentClass->parentClass = 'Object';
-                            $currentClass->typeName    = $currentClass->className;
+                            $currentClass->typeName = $currentClass->className;
 
                             $this->classes[$value] = $currentClass;
-                            $currentClass          = new ClassDefinition();
+                            $currentClass = new ClassDefinition();
                             continue;
                         } else {
                             $this->printError('Expected abstract class description', ['description' => $description]);
@@ -111,7 +112,7 @@ class SchemaParser
                     }
 
                     if ('class' === $key) {
-                        $currentClassName        = $this->getClassName($value);
+                        $currentClassName = $this->getClassName($value);
                         $currentClass->className = $currentClassName;
 
                         $needClassDescription = true;
@@ -133,19 +134,19 @@ class SchemaParser
                 }
 
                 [$fields, $type] = explode('=', $line);
-                $type            = $this->getClassName($type);
-                $fields          = explode(' ', trim($fields));
-                $typeName        = array_shift($fields);
-                $className       = $this->getClassName($typeName);
+                $type = $this->getClassName($type);
+                $fields = explode(' ', trim($fields));
+                $typeName = array_shift($fields);
+                $className = $this->getClassName($typeName);
 
                 if ($type !== $currentClassName) {
-                    $currentClassName     = '';
-                    $currentClass         = new ClassDefinition();
+                    $currentClassName = '';
+                    $currentClass = new ClassDefinition();
                     $needClassDescription = false;
                 }
 
                 if (!$isFunction) {
-                    $typeLower      = strtolower($type);
+                    $typeLower = strtolower($type);
                     $classNameLower = strtolower($className);
 
                     if (empty($currentClassName) === ($typeLower !== $classNameLower)) {
@@ -194,61 +195,48 @@ class SchemaParser
                     $this->printError("Have no description for class `$className`");
                 }
 
-                $baseClassName    = $currentClassName ?: $this->getBaseClassName($isFunction);
+                $baseClassName = $currentClassName ?: $this->getBaseClassName($isFunction);
                 $classDescription = $info['description'];
 
                 if ($isFunction) {
                     $currentClass->returnType = $this->getTypeName($type);
                 }
 
-                $currentClass->className   = $className;
+                $currentClass->className = $className;
                 $currentClass->parentClass = $baseClassName;
-                $currentClass->classDocs   = $classDescription;
-                $currentClass->typeName    = $typeName;
+                $currentClass->classDocs = $classDescription;
+                $currentClass->typeName = $typeName;
 
                 foreach ($knownFields as $name => $fieldType) {
-                    $mayBeNull     = false !== stripos($info[$name], 'may be null');
-                    $fieldName     = $this->getFieldName($name, $className);
+                    $mayBeNull = false !== stripos($info[$name], 'may be null');
+                    $fieldName = $this->getFieldName($name, $className);
                     $fieldTypeName = $this->getTypeName($fieldType);
 
                     $rawName = $name;
-                    if ('param_' === substr($rawName, 0, 6)) {
+                    if (strpos($rawName, 'param_') === 0) {
                         $rawName = substr($rawName, 6);
                     }
 
-                    $field            = $currentClass->getField($name);
-                    $field->rawName   = $rawName;
-                    $field->name      = $fieldName;
-                    $field->type      = $fieldTypeName;
-                    $field->doc       = $info[$name];
+                    $field = $currentClass->getField($name);
+                    $field->rawName = $rawName;
+                    $field->name = $fieldName;
+                    $field->type = $fieldTypeName;
+                    $field->doc = $info[$name];
                     $field->mayBeNull = $mayBeNull;
                 }
 
                 $this->classes[$typeName] = $currentClass;
-                $currentClass             = new ClassDefinition();
-                $description              = '';
+                $currentClass = new ClassDefinition();
+                $description = '';
             }
         }
 
         return $this->classes;
     }
 
-    private function printError(string $msg, array $args = []): void
+    protected function getBaseClassName($isFunction): string
     {
-        $this->output->writeln(
-            '<error>' . $msg . '</error>',
-        );
-
-        dump(['line' => $this->currentLine, 'line_nr' => $this->currentLineNr], $args);
-    }
-
-    private function printDebug(string $msg, array $args = []): void
-    {
-        if ($this->output->isDebug()) {
-            $this->output->writeln('<debug>' . $msg . '</debug>');
-
-            dump(['line' => $this->currentLine, 'line_nr' => $this->currentLineNr], $args);
-        }
+        return $isFunction ? 'Function' : 'Object';
     }
 
     protected function getClassName($name): string
@@ -256,9 +244,17 @@ class SchemaParser
         return implode(array_map('ucfirst', explode('.', trim($name, "\r\n ;"))));
     }
 
-    protected function getBaseClassName($isFunction): string
+    protected function getFieldName($name, $className): string
     {
-        return $isFunction ? 'Function' : 'Object';
+        if ('param_' === substr($name, 0, 6)) {
+            $name = substr($name, 6);
+        }
+
+        return preg_replace_callback(
+            '/_([A-Za-z])/',
+            fn($matches) => strtoupper($matches[1]),
+            trim($name)
+        );
     }
 
     protected function getTypeName($type): string
@@ -268,12 +264,12 @@ class SchemaParser
                 return 'bool';
             case 'int32':
             case 'int53':
+            case 'int64':
                 return 'int';
             case 'double':
                 return 'float';
             case 'string':
             case 'bytes':
-            case 'int64':
                 return 'string';
             case 'bool':
             case 'int':
@@ -310,16 +306,21 @@ class SchemaParser
         }
     }
 
-    protected function getFieldName($name, $className): string
+    private function printDebug(string $msg, array $args = []): void
     {
-        if ('param_' === substr($name, 0, 6)) {
-            $name = substr($name, 6);
-        }
+        if ($this->output->isDebug()) {
+            $this->output->writeln('<debug>' . $msg . '</debug>');
 
-        return preg_replace_callback(
-            '/_([A-Za-z])/',
-            fn ($matches) => strtoupper($matches[1]),
-            trim($name)
+            $this->dumper->dump(['line' => $this->currentLine, 'line_nr' => $this->currentLineNr, 'args' => $args]);
+        }
+    }
+
+    private function printError(string $msg, array $args = []): void
+    {
+        $this->output->writeln(
+            '<error>' . $msg . '</error>',
         );
+
+        $this->dumper->dump(['line' => $this->currentLine, 'line_nr' => $this->currentLineNr, 'args' => $args]);
     }
 }

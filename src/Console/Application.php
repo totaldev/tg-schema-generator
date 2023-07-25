@@ -50,6 +50,18 @@ class Application extends Command
             InputArgument::OPTIONAL,
             'Telegram TL file to generate classes from'
         );
+        $this->addArgument(
+            'target',
+            InputArgument::OPTIONAL,
+            'Target directory for generate classes.',
+            __DIR__ . '/../../schema/src'
+        );
+        $this->addArgument(
+            'namespace',
+            InputArgument::OPTIONAL,
+            'Namespaces for classes',
+            'Totaldev\TgSchema'
+        );
     }
 
     protected function execute(InputInterface $input, OutputInterface $output)
@@ -57,7 +69,7 @@ class Application extends Command
         $parser  = new SchemaParser($output, $input->getArgument('tl_file'));
         $classes = $parser->parse();
 
-        $generator = new CodeGenerator('PHPTdGram\Schema', __DIR__ . '/../../schema/src');
+        $generator = new CodeGenerator($input->getArgument('namespace'), $input->getArgument('target'));
         $generator->generate($classes);
 
         return 0;
