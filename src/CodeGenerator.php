@@ -2,14 +2,13 @@
 
 declare(strict_types=1);
 
-namespace PHPTdGram\SchemaGenerator;
+namespace totaldev\SchemaGenerator;
 
 use InvalidArgumentException;
-use JsonSerializable;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PsrPrinter;
-use PHPTdGram\SchemaGenerator\Model\ClassDefinition;
+use totaldev\SchemaGenerator\Model\ClassDefinition;
 
 /**
  * @author  Aurimas Niekis <aurimas@niekis.lt>

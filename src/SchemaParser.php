@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace PHPTdGram\SchemaGenerator;
+namespace totaldev\SchemaGenerator;
 
-use PHPTdGram\SchemaGenerator\Model\ClassDefinition;
+use totaldev\SchemaGenerator\Model\ClassDefinition;
 use Nette\PhpGenerator\Dumper;
 use Symfony\Component\Console\Output\OutputInterface;
 

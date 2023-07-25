@@ -16,14 +16,14 @@ The PHP TD Gram Schema Generator tool to generate Schema classes from [td_api.tl
 Via Composer
 
 ```bash
-$ composer require phptdgram/schema-generator
+$ composer require totaldev/tg-schema-generator
 ```
 
 ## Using
 
 ```bash
-$ git clone git@github.com:phptdgram/schema.git shema
-$ ./bin/schema-generator
+$ git clone git@github.com:totaldev/schema.git shema
+$ ./bin/tg-schema-generator
 $ cd ./schema
 $ composer install
 $ composer cs-fix
@@ -58,16 +58,16 @@ Please see [CONTRIBUTING](CONTRIBUTING.md) and [CONDUCT](CONDUCT.md) for details
 
 Please see [License File](LICENSE) for more information.
 
-[ico-version]: https://img.shields.io/packagist/v/phptdgram/schema-generator.svg?style=flat-square
+[ico-version]: https://img.shields.io/packagist/v/totaldev/tg-schema-generator.svg?style=flat-square
 [ico-license]: https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square
-[ico-travis]: https://img.shields.io/travis/com/phptdgram/schema-generator/master.svg?style=flat-square
-[ico-quality]: https://img.shields.io/scrutinizer/quality/g/phptdgram/schema-generator?style=flat-square
-[ico-downloads]: https://img.shields.io/packagist/dt/phptdgram/schema-generator.svg?style=flat-square
+[ico-travis]: https://img.shields.io/travis/com/totaldev/tg-schema-generator/master.svg?style=flat-square
+[ico-quality]: https://img.shields.io/scrutinizer/quality/g/totaldev/tg-schema-generator?style=flat-square
+[ico-downloads]: https://img.shields.io/packagist/dt/totaldev/tg-schema-generator.svg?style=flat-square
 [ico-email]: https://img.shields.io/badge/email-aurimas@niekis.lt-blue.svg?style=flat-square
 
-[link-travis]: https://travis-ci.com/phptdgram/schema-generator
-[link-packagist]: https://packagist.org/packages/phptdgram/schema-generator
-[link-scrutinizer]: https://scrutinizer-ci.com/g/phptdgram/schema-generator
-[link-downloads]: https://packagist.org/packages/phptdgram/schema-generator/stats
+[link-travis]: https://travis-ci.com/totaldev/tg-schema-generator
+[link-packagist]: https://packagist.org/packages/totaldev/tg-schema-generator
+[link-scrutinizer]: https://scrutinizer-ci.com/g/totaldev/tg-schema-generator
+[link-downloads]: https://packagist.org/packages/totaldev/tg-schema-generator/stats
 [link-td-api]: https://github.com/tdlib/td/blob/master/td/generate/scheme/td_api.tl
 [link-email]: mailto:aurimas@niekis.lt

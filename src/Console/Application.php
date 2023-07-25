@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace PHPTdGram\SchemaGenerator\Console;
+namespace totaldev\SchemaGenerator\Console;
 
-use PHPTdGram\SchemaGenerator\CodeGenerator;
-use PHPTdGram\SchemaGenerator\SchemaParser;
+use totaldev\SchemaGenerator\CodeGenerator;
+use totaldev\SchemaGenerator\SchemaParser;
 use Symfony\Component\Console\Application as SfApplication;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;

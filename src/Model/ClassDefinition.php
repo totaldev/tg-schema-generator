@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace PHPTdGram\SchemaGenerator\Model;
+namespace totaldev\SchemaGenerator\Model;
 
 /**
  * @author  Aurimas Niekis <aurimas@niekis.lt>

@@ -1,26 +1,29 @@
 {
-    "name": "phptdgram/schema-generator",
+    "name": "totaldev/tg-schema-generator",
     "type": "library",
     "description": "A PHP TD Gram Schema Generator tool to generate Schema classes from td_api.tl file.",
     "keywords": [
         "schma",
         "td_api",
-        "schema-generator",
-        "phptdgram",
+        "tg-schema-generator",
+        "totaldev",
         "telegram",
         "tdlib"
     ],
-    "homepage": "https://github.com/phptdgram/schema-generator",
+    "homepage": "https://github.com/totaldev/tg-schema-generator",
     "license": "MIT",
     "authors": [
         {
             "name": "Aurimas Niekis",
             "email": "aurimas@niekis.lt"
+        },
+        {
+            "name": "Vadim Kovalenko"
         }
     ],
     "support": {
-        "issues": "https://github.com/phptdgram/schema-generator",
-        "source": "https://github.com/phptdgram/schema-generator"
+        "issues": "https://github.com/totaldev/tg-schema-generator",
+        "source": "https://github.com/totaldev/tg-schema-generator"
     },
     "require": {
         "php": "^7.4||^8.0",
@@ -32,14 +35,14 @@
     },
     "autoload": {
         "psr-4": {
-            "PHPTdGram\\SchemaGenerator\\": "src"
+            "Totaldev\\SchemaGenerator\\": "src"
         },
         "classmap": [
             "src/"
         ]
     },
     "bin": [
-        "bin/schema-generator"
+        "bin/tg-schema-generator"
     ],
     "scripts": {
         "cs-check": "php-cs-fixer fix --dry-run --diff --diff-format udiff",
