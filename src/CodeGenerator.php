@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace totaldev\SchemaGenerator;
 
 use InvalidArgumentException;
+use JsonSerializable;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PsrPrinter;
@@ -15,18 +16,19 @@ use totaldev\SchemaGenerator\Model\ClassDefinition;
  */
 class CodeGenerator
 {
-    public const OBJECT_CLASS              = 'TdObject';
-    public const FUNCTION_CLASS            = 'TdFunction';
-    public const SCHEMA_REGISTRY_CLASS     = 'TdSchemaRegistry';
+    public const OBJECT_CLASS = 'TdObject';
+    public const FUNCTION_CLASS = 'TdFunction';
+    public const SCHEMA_REGISTRY_CLASS = 'TdSchemaRegistry';
     public const TYPE_SERIALIZER_INTERFACE = 'TdTypeSerializableInterface';
 
     private string $baseNamespace;
+
     private string $baseFolder;
 
     public function __construct(string $baseNamespace, string $baseFolder)
     {
         $this->baseNamespace = $baseNamespace;
-        $this->baseFolder    = $baseFolder;
+        $this->baseFolder = $baseFolder;
     }
 
     /**
@@ -36,13 +38,21 @@ class CodeGenerator
     {
         $files = [
             'TdTypeSerializableInterface.php' => $this->generateTypeSerializeInterface(),
-            'TdObject.php'                    => $this->generateTdObject(),
-            'TdFunction.php'                  => $this->generateTdFunction(),
-            'TdSchemaRegistry.php'            => $this->generateTdSchemaRegistry($classes),
+            'TdObject.php' => $this->generateTdObject(),
+            'TdFunction.php' => $this->generateTdFunction(),
+            'TdSchemaRegistry.php' => $this->generateTdSchemaRegistry($classes),
         ];
 
         foreach ($classes as $classDefinition) {
-            $fileName = $classDefinition->className . '.php';
+            $subDir = $this->getClassNamespaceAdd($classDefinition->className);
+
+            if ($subDir) {
+                $subDirPath = "$this->baseFolder/$subDir";
+                if (!is_dir($subDirPath) && !mkdir($subDirPath) && !is_dir($subDirPath)) {
+                    throw new \RuntimeException(sprintf('Directory "%s" was not created', $subDirPath));
+                }
+            }
+            $fileName = ($subDir ? "$subDir/" : "") . $classDefinition->className . '.php';
 
             $files[$fileName] = $this->generateClass($classDefinition);
         }
@@ -143,7 +153,7 @@ class CodeGenerator
         $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
 
         $functionClass = $phpNamespace->addClass(static::FUNCTION_CLASS);
-        $functionClass->addExtend(static::OBJECT_CLASS)
+        $functionClass->setExtends(static::OBJECT_CLASS)
             ->setAbstract();
 
         return $phpFile;
@@ -167,10 +177,10 @@ class CodeGenerator
         $types = [];
 
         foreach ($classes as $classDefinition) {
-            $types[$classDefinition->typeName] = new Literal($classDefinition->className . '::class');
+            $types[$classDefinition->typeName] = new Literal($this->getClassNamespaceAdd($classDefinition->className) . '\\' . $classDefinition->className . '::class');
         }
 
-        $class->addConstant('VERSION', '1.6.0')
+        $class->addConstant('VERSION', '1.8.15') // todo implement version detection
             ->setPublic();
 
         $class->addConstant('TYPES', $types)
@@ -231,18 +241,23 @@ class CodeGenerator
         $phpFile->addComment('This phpFile is auto-generated.');
         $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
-        $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
+        $phpNamespace = $phpFile->addNamespace(
+            $this->calculateNamespace($classDef->className)
+        );
+        $phpNamespace->addUse($this->baseNamespace .'\\TdSchemaRegistry');
 
         $class = $phpNamespace->addClass($classDef->className);
 
         $parentClass = $classDef->parentClass;
         if ('Object' === $parentClass) {
+            $phpNamespace->addUse($this->baseNamespace .'\\'. static::OBJECT_CLASS);
             $parentClass = static::OBJECT_CLASS;
         } elseif ('Function' === $parentClass) {
+            $phpNamespace->addUse($this->baseNamespace .'\\'. static::FUNCTION_CLASS);
             $parentClass = static::FUNCTION_CLASS;
         }
 
-        $class->addExtend($parentClass)
+        $class->setExtends($parentClass)
             ->addComment($classDef->classDocs);
 
         $class->addConstant('TYPE_NAME', $classDef->typeName)
@@ -269,7 +284,6 @@ class CodeGenerator
 
         if (count($classDef->fields) > 0) {
             $fromArray->addBody('return new static(');
-
             $serialize->addBody('return [');
             $serialize->addBody('    \'@type\' => static::TYPE_NAME,');
         } else {
@@ -279,14 +293,14 @@ class CodeGenerator
 
         foreach ($classDef->fields as $fieldDef) {
             $typeStyle = $fieldDef->type;
-            $type      = $fieldDef->type;
+            $type = $fieldDef->type;
 
             $arrayNestLevels = substr_count($type, '[]');
             if (1 === $arrayNestLevels) {
-                $type      = 'array';
+                $type = 'array';
                 $typeStyle = 'array';
             } elseif (2 === $arrayNestLevels) {
-                $type      = 'array';
+                $type = 'array';
                 $typeStyle = 'array_array';
             } elseif ($arrayNestLevels > 2) {
                 throw new InvalidArgumentException('Vector of higher than 2 lvl deep');
@@ -318,6 +332,7 @@ class CodeGenerator
                     break;
 
                 default:
+                    $phpNamespace->addUse($this->calculateNamespace($rawType) .'\\'. $rawType);
                     if ($fieldDef->mayBeNull) {
                         if ('array' === $typeStyle) {
                             $fromArray->addBody(
@@ -401,5 +416,19 @@ class CodeGenerator
         }
 
         return $phpFile;
+    }
+
+    private function calculateNamespace(string $className): string
+    {
+        $namespace = $this->getClassNamespaceAdd($className);
+
+        return $this->baseNamespace . ($namespace ? "\\$namespace" : "");
+    }
+
+    private function getClassNamespaceAdd(string $className): ?string
+    {
+        preg_match("/([A-Z][a-z]+)([A-z0-9]+)?/", $className, $matches);
+
+        return $matches[1] ?? null;
     }
 }

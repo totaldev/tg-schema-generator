@@ -1,7 +1,7 @@
 #!/usr/bin/env php
 <?php
 
-use PHPTdGram\SchemaGenerator\Console\Application;
+use totaldev\SchemaGenerator\Console\Application;
 
 $possibleFiles = [__DIR__ . '/../../autoload.php', __DIR__ . '/../autoload.php', __DIR__ . '/../vendor/autoload.php'];
 $file          = null;

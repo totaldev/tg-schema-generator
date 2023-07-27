@@ -106,9 +106,9 @@ class SchemaParser
                             $this->classes[$value] = $currentClass;
                             $currentClass = new ClassDefinition();
                             continue;
-                        } else {
-                            $this->printError('Expected abstract class description', ['description' => $description]);
                         }
+
+                        $this->printError('Expected abstract class description', ['description' => $description]);
                     }
 
                     if ('class' === $key) {
