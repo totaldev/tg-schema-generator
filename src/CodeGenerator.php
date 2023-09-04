@@ -70,7 +70,7 @@ class CodeGenerator
     {
         $phpFile = new PhpFile();
         $phpFile->addComment('This phpFile is auto-generated.');
-        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
         $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
 
@@ -89,7 +89,7 @@ class CodeGenerator
     {
         $phpFile = new PhpFile();
         $phpFile->addComment('This phpFile is auto-generated.');
-        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
         $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
         $phpNamespace->addUse(JsonSerializable::class);
@@ -148,7 +148,7 @@ class CodeGenerator
     {
         $phpFile = new PhpFile();
         $phpFile->addComment('This phpFile is auto-generated.');
-        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
         $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
 
@@ -166,7 +166,7 @@ class CodeGenerator
     {
         $phpFile = new PhpFile();
         $phpFile->addComment('This phpFile is auto-generated.');
-        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
         $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
 
@@ -239,7 +239,7 @@ class CodeGenerator
     {
         $phpFile = new PhpFile();
         $phpFile->addComment('This phpFile is auto-generated.');
-        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
         $phpNamespace = $phpFile->addNamespace(
             $this->calculateNamespace($classDef->className)
