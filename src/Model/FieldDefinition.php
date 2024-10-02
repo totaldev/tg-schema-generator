@@ -9,9 +9,9 @@ namespace totaldev\SchemaGenerator\Model;
  */
 class FieldDefinition
 {
-    public string $rawName;
-    public string $name;
-    public string $type;
     public string $doc;
-    public bool   $mayBeNull;
+    public bool $mayBeNull;
+    public string $name;
+    public string $rawName;
+    public string $type;
 }

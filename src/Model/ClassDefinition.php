@@ -9,12 +9,12 @@ namespace totaldev\SchemaGenerator\Model;
  */
 class ClassDefinition
 {
-    public string $parentClass;
-    public string $className;
     public string $classDocs;
+    public string $className;
 
     /** @var FieldDefinition[] */
-    public array  $fields = [];
+    public array $fields = [];
+    public string $parentClass;
     public string $returnType;
     public string $typeName;
 

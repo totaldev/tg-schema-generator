@@ -4,23 +4,23 @@ declare(strict_types=1);
 
 namespace totaldev\SchemaGenerator\Console;
 
-use totaldev\SchemaGenerator\CodeGenerator;
-use totaldev\SchemaGenerator\SchemaParser;
 use Symfony\Component\Console\Application as SfApplication;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
+use totaldev\SchemaGenerator\CodeGenerator;
+use totaldev\SchemaGenerator\SchemaParser;
 
 /**
  * @author  Aurimas Niekis <aurimas@niekis.lt>
  */
 class Application extends Command
 {
+    private bool $running = false;
     private string $version = '1.0';
-    private bool   $running = false;
 
-    public function run(InputInterface $input = null, OutputInterface $output = null): int
+    public function run(?InputInterface $input = null, ?OutputInterface $output = null): int
     {
         if ($this->running) {
             return parent::run($input, $output);
@@ -64,13 +64,21 @@ class Application extends Command
         );
     }
 
-    protected function execute(InputInterface $input, OutputInterface $output)
+    protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        $parser  = new SchemaParser($output, $input->getArgument('tl_file'));
+        $parser = new SchemaParser($output, $input->getArgument('tl_file'));
         $classes = $parser->parse();
 
         $generator = new CodeGenerator($input->getArgument('namespace'), $input->getArgument('target'));
         $generator->generate($classes);
+
+        $config = dirname(__DIR__, 2) . '/bin/.php-cs-fixer.primary.php';
+        exec("./vendor/friendsofphp/php-cs-fixer/php-cs-fixer fix --config=$config", $output);
+        echo implode(PHP_EOL, $output) . PHP_EOL;
+
+        $config = dirname(__DIR__, 2) . '/bin/.php-cs-fixer.postprocess.php';
+        exec("./vendor/friendsofphp/php-cs-fixer/php-cs-fixer fix --config=$config", $output);
+        echo implode(PHP_EOL, $output) . PHP_EOL;
 
         return 0;
     }

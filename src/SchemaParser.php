@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace totaldev\SchemaGenerator;
 
-use totaldev\SchemaGenerator\Model\ClassDefinition;
 use Nette\PhpGenerator\Dumper;
 use Symfony\Component\Console\Output\OutputInterface;
+use totaldev\SchemaGenerator\Model\ClassDefinition;
 
 /**
  * @author  Aurimas Niekis <aurimas@niekis.lt>
@@ -21,13 +21,12 @@ class SchemaParser
 
     private Dumper $dumper;
 
-    private OutputInterface $output;
-
     private string $rawSchema;
 
-    public function __construct(OutputInterface $output, string $schemaFile = null)
-    {
-        $this->output = $output;
+    public function __construct(
+        private OutputInterface $output,
+        ?string $schemaFile = null,
+    ) {
         $this->rawSchema = file_get_contents($schemaFile);
         $this->classes = [];
         $this->dumper = new Dumper();
@@ -70,9 +69,9 @@ class SchemaParser
                 } else {
                     $this->printError('Unexpected comment');
                 }
-            } elseif (strpos($line, '? =') || strpos($line, ' = Vector t;') || 'boolFalse = Bool;' === $line ||
-                'boolTrue = Bool;' === $line || 'bytes = Bytes;' === $line || 'int32 = Int32;' === $line ||
-                'int53 = Int53;' === $line || 'int64 = Int64;' === $line) {
+            } elseif (strpos($line, '? =') || strpos($line, ' = Vector t;') || 'boolFalse = Bool;' === $line
+                || 'boolTrue = Bool;' === $line || 'bytes = Bytes;' === $line || 'int32 = Int32;' === $line
+                || 'int53 = Int53;' === $line || 'int64 = Int64;' === $line) {
                 $this->printDebug('skip built-in types');
 
                 continue;
@@ -80,11 +79,11 @@ class SchemaParser
                 $description = trim($description);
 
                 if ('' === $description) {
-//                    $this->printError('Empty description', ['description' => $description]);
+                    //                    $this->printError('Empty description', ['description' => $description]);
                 }
 
                 if (($description[0] ?? '') !== '@') {
-//                    $this->printError('Wrong description begin', ['description' => $description]);
+                    //                    $this->printError('Wrong description begin', ['description' => $description]);
                 }
 
                 $docs = explode('@', $description);
@@ -122,14 +121,14 @@ class SchemaParser
                         }
                     } else {
                         if (isset($info[$key])) {
-//                            $this->printError("Duplicate info about `$key`");
+                            //                            $this->printError("Duplicate info about `$key`");
                         }
                         $info[$key] = trim($value);
                     }
                 }
 
                 if (1 !== substr_count($line, '=')) {
-//                    $this->printError("Wrong '=' count");
+                    //                    $this->printError("Wrong '=' count");
                     continue;
                 }
 
@@ -213,7 +212,7 @@ class SchemaParser
                     $fieldTypeName = $this->getTypeName($fieldType);
 
                     $rawName = $name;
-                    if (strpos($rawName, 'param_') === 0) {
+                    if (0 === strpos($rawName, 'param_')) {
                         $rawName = substr($rawName, 6);
                     }
 
@@ -252,7 +251,7 @@ class SchemaParser
 
         return preg_replace_callback(
             '/_([A-Za-z])/',
-            fn($matches) => strtoupper($matches[1]),
+            fn ($matches) => strtoupper($matches[1]),
             trim($name)
         );
     }

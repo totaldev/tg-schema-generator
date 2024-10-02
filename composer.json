@@ -26,13 +26,14 @@
         "source": "https://github.com/totaldev/tg-schema-generator"
     },
     "require": {
-        "php": "^8.0",
+        "php": ">=8.0",
         "nette/php-generator": "^v4.0.0",
         "symfony/console": "^5.0",
         "ext-json": "*"
     },
     "require-dev": {
-        "friendsofphp/php-cs-fixer": "^2"
+        "friendsofphp/php-cs-fixer": "^v3.64.0",
+        "kubawerlos/php-cs-fixer-custom-fixers": "^3.22"
     },
     "autoload": {
         "psr-4": {

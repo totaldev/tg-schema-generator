@@ -22,10 +22,10 @@ $ composer require totaldev/tg-schema-generator
 ## Using
 
 ```bash
-$ git clone git@github.com:totaldev/schema.git shema
-$ ./bin/tg-schema-generator
+$ git clone git@github.com:totaldev/schema.git schema
 $ cd ./schema
 $ composer install
+$ ./bin/schema-generator {$pathToFile:td_api.tl}
 $ composer cs-fix
 ```
 

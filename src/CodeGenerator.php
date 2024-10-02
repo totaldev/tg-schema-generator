@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace totaldev\SchemaGenerator;
 
-use InvalidArgumentException;
-use JsonSerializable;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PsrPrinter;
+use PhpCsFixer\Utils;
 use totaldev\SchemaGenerator\Model\ClassDefinition;
 
 /**
@@ -16,19 +15,15 @@ use totaldev\SchemaGenerator\Model\ClassDefinition;
  */
 class CodeGenerator
 {
-    public const OBJECT_CLASS = 'TdObject';
     public const FUNCTION_CLASS = 'TdFunction';
+    public const OBJECT_CLASS = 'TdObject';
     public const SCHEMA_REGISTRY_CLASS = 'TdSchemaRegistry';
     public const TYPE_SERIALIZER_INTERFACE = 'TdTypeSerializableInterface';
 
-    private string $baseNamespace;
-
-    private string $baseFolder;
-
-    public function __construct(string $baseNamespace, string $baseFolder)
-    {
-        $this->baseNamespace = $baseNamespace;
-        $this->baseFolder = $baseFolder;
+    public function __construct(
+        private string $baseNamespace,
+        private string $baseFolder,
+    ) {
     }
 
     /**
@@ -52,7 +47,7 @@ class CodeGenerator
                     throw new \RuntimeException(sprintf('Directory "%s" was not created', $subDirPath));
                 }
             }
-            $fileName = ($subDir ? "$subDir/" : "") . $classDefinition->className . '.php';
+            $fileName = ($subDir ? "$subDir/" : '') . $classDefinition->className . '.php';
 
             $files[$fileName] = $this->generateClass($classDefinition);
         }
@@ -66,21 +61,192 @@ class CodeGenerator
         }
     }
 
-    public function generateTypeSerializeInterface(): PhpFile
+    public function generateClass(ClassDefinition $classDef): PhpFile
     {
         $phpFile = new PhpFile();
         $phpFile->addComment('This phpFile is auto-generated.');
-//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+        //        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+
+        $phpNamespace = $phpFile->addNamespace(
+            $this->calculateNamespace($classDef->className)
+        );
+        $phpNamespace->addUse($this->baseNamespace . '\\TdSchemaRegistry');
+
+        $class = $phpNamespace->addClass($classDef->className);
+
+        $parentClass = $classDef->parentClass;
+        if ('Object' === $parentClass) {
+            $phpNamespace->addUse($this->baseNamespace . '\\' . static::OBJECT_CLASS);
+            $parentClass = static::OBJECT_CLASS;
+        } elseif ('Function' === $parentClass) {
+            $phpNamespace->addUse($this->baseNamespace . '\\' . static::FUNCTION_CLASS);
+            $parentClass = static::FUNCTION_CLASS;
+        }
+
+        $class->setExtends($parentClass)
+            ->addComment($classDef->classDocs);
+
+        $class->addConstant('TYPE_NAME', $classDef->typeName)
+            ->setPublic();
+
+        $constructor = $class->addMethod('__construct')
+            ->setPublic();
+
+        if (!in_array($parentClass, [static::OBJECT_CLASS, static::FUNCTION_CLASS])) {
+            $constructor->addBody('parent::__construct();')
+                ->addBody('');
+        }
+
+        $fromArray = $class->addMethod('fromArray')
+            ->setPublic()
+            ->setStatic()
+            ->setReturnType($classDef->className);
+        $fromArray->addParameter('array')
+            ->setType('array');
+
+        $serialize = $class->addMethod('typeSerialize')
+            ->setReturnType('array');
+
+        if (count($classDef->fields) > 0) {
+            $fromArray->addBody('return new static(');
+            $serialize->addBody('return [');
+            $serialize->addBody('    \'@type\' => static::TYPE_NAME,');
+        } else {
+            $fromArray->addBody('return new static();');
+            $serialize->addBody('return [\'@type\' => static::TYPE_NAME];');
+        }
+
+        foreach ($classDef->fields as $fieldDef) {
+            $typeStyle = $fieldDef->type;
+            $type = $fieldDef->type;
+
+            $arrayNestLevels = substr_count($type, '[]');
+            if (1 === $arrayNestLevels) {
+                $type = 'array';
+                $typeStyle = 'array';
+            } elseif (2 === $arrayNestLevels) {
+                $type = 'array';
+                $typeStyle = 'array_array';
+            } elseif ($arrayNestLevels > 2) {
+                throw new \InvalidArgumentException('Vector of higher than 2 lvl deep');
+            }
+
+            $class->addProperty($fieldDef->name)
+                ->setProtected()
+                ->setNullable($fieldDef->mayBeNull)
+                ->setType($type)
+                ->addComment($fieldDef->doc)
+                ->addComment('')
+                ->addComment('@var ' . $fieldDef->type . ($fieldDef->mayBeNull ? '|null' : ''));
+
+            $constructor->addParameter($fieldDef->name)
+                ->setType($type)
+                ->setNullable($fieldDef->mayBeNull);
+
+            $constructor->addBody('$this->' . $fieldDef->name . ' = $' . $fieldDef->name . ';');
+
+            [$rawType] = explode('[', $fieldDef->type);
+
+            switch ($rawType) {
+                case 'string':
+                case 'int':
+                case 'bool':
+                case 'float':
+                    $fromArray->addBody('    $array[\'' . $fieldDef->rawName . '\'],');
+                    $serialize->addBody('    \'' . $fieldDef->rawName . '\' => $this->' . $fieldDef->name . ',');
+                    break;
+
+                default:
+                    $phpNamespace->addUse($this->calculateNamespace($rawType) . '\\' . $rawType);
+                    $arg = Utils::camelCaseToUnderscore($fieldDef->name);
+                    if ($fieldDef->mayBeNull) {
+                        if ('array' === $typeStyle) {
+                            $fromArray->addBody(
+                                '    (isset($array[\'' . $arg . '\']) ? array_map(fn($x) => TdSchemaRegistry::fromArray($x), $array[\'' . $arg . '\']) : null),'
+                            );
+
+                            $serialize->addBody(
+                                '    (isset($this->' . $fieldDef->name .
+                                ') ? array_map(fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . ') : null),'
+                            );
+                        } elseif ('array_array' === $typeStyle) {
+                            $fromArray->addBody(
+                                '    (isset($array[\'' . $arg . '\']) ? array_map(fn($x) => '
+                                . 'array_map(fn($y) => TdSchemaRegistry::fromArray($y), $x), $array[\'' . $arg . '\']) : null),'
+                            );
+
+                            $serialize->addBody(
+                                '    (isset($this->' . $fieldDef->name . ') ? array_map(fn($x) => array_map(fn($y) => $y->typeSerialize(), $x), $this->'
+                                . $fieldDef->name . ') : null),'
+                            );
+                        } else {
+                            $fromArray->addBody(
+                                '    (isset($array[\'' . $arg . '\']) ? ' .
+                                'TdSchemaRegistry::fromArray($array[\'' . $arg . '\']) : null),'
+                            );
+
+                            $serialize->addBody(
+                                '    \'' . $fieldDef->rawName . '\' => (isset($this->' .
+                                $fieldDef->name . ') ? $this->' . $fieldDef->name . ' : null),'
+                            );
+                        }
+                    } else {
+                        if ('array' === $typeStyle) {
+                            $fromArray->addBody(
+                                '    array_map(fn($x) => TdSchemaRegistry::fromArray($x), $array[\'' . $arg . '\']),'
+                            );
+
+                            $serialize->addBody(
+                                '    array_map(fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . '),'
+                            );
+                        } elseif ('array_array' === $typeStyle) {
+                            $fromArray->addBody(
+                                '    array_map(fn($x) => array_map(fn($y) => TdSchemaRegistry::fromArray($y), $x), $array[\'' . $arg . '\']),'
+                            );
+
+                            $serialize->addBody(
+                                '    array_map(fn($x) => array_map(fn($y) => $y->typeSerialize(), $x), $this->' . $fieldDef->name . '),'
+                            );
+                        } else {
+                            $fromArray->addBody(
+                                '    TdSchemaRegistry::fromArray($array[\'' . $arg . '\']),'
+                            );
+
+                            $serialize->addBody(
+                                '    \'' . $arg . '\' => $this->' . $fieldDef->name . '->typeSerialize(),'
+                            );
+                        }
+                    }
+            }
+
+            $getter = $class->addMethod('get' . ucfirst($fieldDef->name))
+                ->setPublic()
+                ->setReturnType($type)
+                ->setReturnNullable($fieldDef->mayBeNull);
+
+            $getter->addBody('return $this->' . $fieldDef->name . ';');
+        }
+
+        if (count($classDef->fields) > 0) {
+            $fromArray->addBody(');');
+
+            $serialize->addBody('];');
+        }
+
+        return $phpFile;
+    }
+
+    public function generateTdFunction(): PhpFile
+    {
+        $phpFile = new PhpFile();
+        $phpFile->addComment('This phpFile is auto-generated.');
+        // $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
         $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
 
-        $typeSerializerInterface = $phpNamespace->addInterface(
-            static::TYPE_SERIALIZER_INTERFACE
-        );
-
-        $typeSerializerInterface->addMethod('typeSerialize')
-            ->setPublic()
-            ->setReturnType('array');
+        $functionClass = $phpNamespace->addClass(static::FUNCTION_CLASS);
+        $functionClass->setExtends(static::OBJECT_CLASS)
+            ->setAbstract();
 
         return $phpFile;
     }
@@ -89,14 +255,14 @@ class CodeGenerator
     {
         $phpFile = new PhpFile();
         $phpFile->addComment('This phpFile is auto-generated.');
-//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+        // $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
         $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
-        $phpNamespace->addUse(JsonSerializable::class);
+        $phpNamespace->addUse(\JsonSerializable::class);
 
         $objectClass = $phpNamespace->addClass(static::OBJECT_CLASS);
         $objectClass->addImplement(static::TYPE_SERIALIZER_INTERFACE)
-            ->addImplement(JsonSerializable::class)
+            ->addImplement(\JsonSerializable::class)
             ->setAbstract();
 
         $objectClass->addConstant('TYPE_NAME', '_tdObject')
@@ -144,21 +310,6 @@ class CodeGenerator
         return $phpFile;
     }
 
-    public function generateTdFunction(): PhpFile
-    {
-        $phpFile = new PhpFile();
-        $phpFile->addComment('This phpFile is auto-generated.');
-//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
-
-        $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
-
-        $functionClass = $phpNamespace->addClass(static::FUNCTION_CLASS);
-        $functionClass->setExtends(static::OBJECT_CLASS)
-            ->setAbstract();
-
-        return $phpFile;
-    }
-
     /**
      * @param ClassDefinition[] $classes
      */
@@ -166,11 +317,11 @@ class CodeGenerator
     {
         $phpFile = new PhpFile();
         $phpFile->addComment('This phpFile is auto-generated.');
-//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+        // $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
         $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
 
-        $phpNamespace->addUse(InvalidArgumentException::class);
+        $phpNamespace->addUse(\InvalidArgumentException::class);
 
         $class = $phpNamespace->addClass(static::SCHEMA_REGISTRY_CLASS);
 
@@ -180,7 +331,7 @@ class CodeGenerator
             $types[$classDefinition->typeName] = new Literal($this->getClassNamespaceAdd($classDefinition->className) . '\\' . $classDefinition->className . '::class');
         }
 
-        $class->addConstant('VERSION', '1.8.15') // todo implement version detection
+        $class->addConstant('VERSION', '1.8.36') // todo implement version detection
             ->setPublic();
 
         $class->addConstant('TYPES', $types)
@@ -235,185 +386,21 @@ class CodeGenerator
         return $phpFile;
     }
 
-    public function generateClass(ClassDefinition $classDef): PhpFile
+    public function generateTypeSerializeInterface(): PhpFile
     {
         $phpFile = new PhpFile();
         $phpFile->addComment('This phpFile is auto-generated.');
-//        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
+        //        $phpFile->setStrictTypes(); // adds declare(strict_types=1)
 
-        $phpNamespace = $phpFile->addNamespace(
-            $this->calculateNamespace($classDef->className)
+        $phpNamespace = $phpFile->addNamespace($this->baseNamespace);
+
+        $typeSerializerInterface = $phpNamespace->addInterface(
+            static::TYPE_SERIALIZER_INTERFACE
         );
-        $phpNamespace->addUse($this->baseNamespace .'\\TdSchemaRegistry');
 
-        $class = $phpNamespace->addClass($classDef->className);
-
-        $parentClass = $classDef->parentClass;
-        if ('Object' === $parentClass) {
-            $phpNamespace->addUse($this->baseNamespace .'\\'. static::OBJECT_CLASS);
-            $parentClass = static::OBJECT_CLASS;
-        } elseif ('Function' === $parentClass) {
-            $phpNamespace->addUse($this->baseNamespace .'\\'. static::FUNCTION_CLASS);
-            $parentClass = static::FUNCTION_CLASS;
-        }
-
-        $class->setExtends($parentClass)
-            ->addComment($classDef->classDocs);
-
-        $class->addConstant('TYPE_NAME', $classDef->typeName)
-            ->setPublic();
-
-        $constructor = $class->addMethod('__construct')
-            ->setPublic();
-
-        if (!in_array($parentClass, [static::OBJECT_CLASS, static::FUNCTION_CLASS])) {
-            $constructor->addBody('parent::__construct();')
-                ->addBody('');
-        }
-
-        $fromArray = $class->addMethod('fromArray')
+        $typeSerializerInterface->addMethod('typeSerialize')
             ->setPublic()
-            ->setStatic()
-            ->setReturnType($classDef->className);
-
-        $serialize = $class->addMethod('typeSerialize')
             ->setReturnType('array');
-
-        $fromArray->addParameter('array')
-            ->setType('array');
-
-        if (count($classDef->fields) > 0) {
-            $fromArray->addBody('return new static(');
-            $serialize->addBody('return [');
-            $serialize->addBody('    \'@type\' => static::TYPE_NAME,');
-        } else {
-            $fromArray->addBody('return new static();');
-            $serialize->addBody('return [\'@type\' => static::TYPE_NAME];');
-        }
-
-        foreach ($classDef->fields as $fieldDef) {
-            $typeStyle = $fieldDef->type;
-            $type = $fieldDef->type;
-
-            $arrayNestLevels = substr_count($type, '[]');
-            if (1 === $arrayNestLevels) {
-                $type = 'array';
-                $typeStyle = 'array';
-            } elseif (2 === $arrayNestLevels) {
-                $type = 'array';
-                $typeStyle = 'array_array';
-            } elseif ($arrayNestLevels > 2) {
-                throw new InvalidArgumentException('Vector of higher than 2 lvl deep');
-            }
-
-            $class->addProperty($fieldDef->name)
-                ->setProtected()
-                ->setNullable($fieldDef->mayBeNull)
-                ->setType($type)
-                ->addComment($fieldDef->doc)
-                ->addComment('')
-                ->addComment('@var ' . $fieldDef->type . ($fieldDef->mayBeNull ? '|null' : ''));
-
-            $constructor->addParameter($fieldDef->name)
-                ->setType($type)
-                ->setNullable($fieldDef->mayBeNull);
-
-            $constructor->addBody('$this->' . $fieldDef->name . ' = $' . $fieldDef->name . ';');
-
-            [$rawType] = explode('[', $fieldDef->type);
-
-            switch ($rawType) {
-                case 'string':
-                case 'int':
-                case 'bool':
-                case 'float':
-                    $fromArray->addBody('    $array[\'' . $fieldDef->rawName . '\'],');
-                    $serialize->addBody('    \'' . $fieldDef->rawName . '\' => $this->' . $fieldDef->name . ',');
-                    break;
-
-                default:
-                    $phpNamespace->addUse($this->calculateNamespace($rawType) .'\\'. $rawType);
-                    if ($fieldDef->mayBeNull) {
-                        if ('array' === $typeStyle) {
-                            $fromArray->addBody(
-                                '    (isset($array[\'' . $fieldDef->name .
-                                '\']) ? array_map(fn($x) => ' . 'TdSchemaRegistry::fromArray($x), $array[\'' .
-                                $fieldDef->name . '\']) : null),'
-                            );
-
-                            $serialize->addBody(
-                                '    (isset($this->' . $fieldDef->name .
-                                ') ? array_map(fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . ') : null),'
-                            );
-                        } elseif ('array_array' === $typeStyle) {
-                            $fromArray->addBody(
-                                '    (isset($array[\'' . $fieldDef->name .
-                                '\']) ? array_map(fn($x) => ' .
-                                'array_map(fn($y) => TdSchemaRegistry::fromArray($y), $x), $array[\'' .
-                                $fieldDef->name . '\']) : null),'
-                            );
-
-                            $serialize->addBody(
-                                '    (isset($this->' . $fieldDef->name .
-                                ') ? array_map(fn($x) => array_map(fn($y) => $y->typeSerialize(), $x), $this->' .
-                                $fieldDef->name . ') : null),'
-                            );
-                        } else {
-                            $fromArray->addBody(
-                                '    (isset($array[\'' . $fieldDef->rawName . '\']) ? ' .
-                                'TdSchemaRegistry::fromArray($array[\'' . $fieldDef->rawName . '\']) : null),'
-                            );
-
-                            $serialize->addBody(
-                                '    \'' . $fieldDef->rawName . '\' => (isset($this->' .
-                                $fieldDef->name . ') ? $this->' . $fieldDef->name . ' : null),'
-                            );
-                        }
-                    } else {
-                        if ('array' === $typeStyle) {
-                            $fromArray->addBody(
-                                '    array_map(fn($x) => TdSchemaRegistry::fromArray($x), $array[\'' .
-                                $fieldDef->name . '\']),'
-                            );
-
-                            $serialize->addBody(
-                                '    array_map(fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . '),'
-                            );
-                        } elseif ('array_array' === $typeStyle) {
-                            $fromArray->addBody(
-                                '    array_map(fn($x) => array_map(fn($y) => TdSchemaRegistry::fromArray($y), $x)' .
-                                ', $array[\'' . $fieldDef->name . '\']),'
-                            );
-
-                            $serialize->addBody(
-                                '    array_map(fn($x) => array_map(fn($y) => $y->typeSerialize(), $x), $this->' .
-                                $fieldDef->name . '),'
-                            );
-                        } else {
-                            $fromArray->addBody(
-                                '    ' . 'TdSchemaRegistry::fromArray($array[\'' . $fieldDef->rawName . '\']),'
-                            );
-
-                            $serialize->addBody(
-                                '    \'' . $fieldDef->rawName . '\' => $this->' . $fieldDef->name . '->typeSerialize(),'
-                            );
-                        }
-                    }
-            }
-
-            $getter = $class->addMethod('get' . ucfirst($fieldDef->name))
-                ->setPublic()
-                ->setReturnType($type)
-                ->setReturnNullable($fieldDef->mayBeNull);
-
-            $getter->addBody('return $this->' . $fieldDef->name . ';');
-        }
-
-        if (count($classDef->fields) > 0) {
-            $fromArray->addBody(');');
-
-            $serialize->addBody('];');
-        }
 
         return $phpFile;
     }
@@ -422,12 +409,12 @@ class CodeGenerator
     {
         $namespace = $this->getClassNamespaceAdd($className);
 
-        return $this->baseNamespace . ($namespace ? "\\$namespace" : "");
+        return $this->baseNamespace . ($namespace ? "\\$namespace" : '');
     }
 
     private function getClassNamespaceAdd(string $className): ?string
     {
-        preg_match("/([A-Z][a-z]+)([A-z0-9]+)?/", $className, $matches);
+        preg_match('/([A-Z][a-z]+)([A-z0-9]+)?/', $className, $matches);
 
         return $matches[1] ?? null;
     }
