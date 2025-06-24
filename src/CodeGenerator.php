@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace totaldev\SchemaGenerator;
 
 use Nette\PhpGenerator\Literal;
+use Nette\PhpGenerator\Method;
+use Nette\PhpGenerator\Parameter;
 use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PsrPrinter;
 use PhpCsFixer\Utils;
@@ -23,8 +25,7 @@ class CodeGenerator
     public function __construct(
         private string $baseNamespace,
         private string $baseFolder,
-    ) {
-    }
+    ) {}
 
     /**
      * @param ClassDefinition[] $classes
@@ -33,9 +34,9 @@ class CodeGenerator
     {
         $files = [
             'TdTypeSerializableInterface.php' => $this->generateTypeSerializeInterface(),
-            'TdObject.php' => $this->generateTdObject(),
-            'TdFunction.php' => $this->generateTdFunction(),
-            'TdSchemaRegistry.php' => $this->generateTdSchemaRegistry($classes),
+            'TdObject.php'                    => $this->generateTdObject(),
+            'TdFunction.php'                  => $this->generateTdFunction(),
+            'TdSchemaRegistry.php'            => $this->generateTdSchemaRegistry($classes),
         ];
 
         foreach ($classes as $classDefinition) {
@@ -139,7 +140,7 @@ class CodeGenerator
                 ->addComment('')
                 ->addComment('@var ' . $fieldDef->type . ($fieldDef->mayBeNull ? '|null' : ''));
 
-            $constructor->addParameter($fieldDef->name)
+            $constructorField = $constructor->addParameter($fieldDef->name)
                 ->setType($type)
                 ->setNullable($fieldDef->mayBeNull);
 
@@ -186,8 +187,8 @@ class CodeGenerator
                             );
 
                             $serialize->addBody(
-                                '    \'' . $fieldDef->rawName . '\' => (isset($this->' .
-                                $fieldDef->name . ') ? $this->' . $fieldDef->name . ' : null),'
+                                '    \'' . $fieldDef->rawName . '\' => $this->' .
+                                $fieldDef->name . ' ?? null,'
                             );
                         }
                     } else {
@@ -228,8 +229,8 @@ class CodeGenerator
         }
 
         if (count($classDef->fields) > 0) {
+            $this->sortMethodParameters($constructor);
             $fromArray->addBody(');');
-
             $serialize->addBody('];');
         }
 
@@ -332,7 +333,7 @@ class CodeGenerator
         }
 
         $class->addConstant('VERSION', '1.8.36') // todo implement version detection
-            ->setPublic();
+        ->setPublic();
 
         $class->addConstant('TYPES', $types)
             ->setPublic();
@@ -417,5 +418,28 @@ class CodeGenerator
         preg_match('/([A-Z][a-z]+)([A-z0-9]+)?/', $className, $matches);
 
         return $matches[1] ?? null;
+    }
+
+    private function sortMethodParameters(Method $method): void
+    {
+        $parameters = $method->getParameters();
+
+        // Сортировка: параметры без дефолтных значений идут первыми
+        usort($parameters, static function (Parameter $a, Parameter $b) {
+            // Если у $a есть значение по умолчанию, а у $b нет → $b должен идти первым
+            if ($a->hasDefaultValue() && !$b->hasDefaultValue()) {
+                return 1;
+            }
+            // Если у $a нет значения по умолчанию, а у $b есть → $a идёт первым
+            if (!$a->hasDefaultValue() && $b->hasDefaultValue()) {
+                return -1;
+            }
+
+            // Иначе сохраняем исходный порядок
+            return 0;
+        });
+
+        $method->setParameters($parameters);
+
     }
 }

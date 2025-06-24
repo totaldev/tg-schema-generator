@@ -26,27 +26,6 @@ $ git clone git@github.com:totaldev/schema.git schema
 $ cd ./schema
 $ composer install
 $ ./bin/schema-generator {$pathToFile:td_api.tl}
-$ composer cs-fix
-```
-
-## Testing
-
-Run PHP style checker
-
-```bash
-$ composer cs-check
-```
-
-Run PHP style fixer
-
-```bash
-$ composer cs-fix
-```
-
-Run all continuous integration tests
-
-```bash
-$ composer ci-run
 ```
 
 ## Contributing

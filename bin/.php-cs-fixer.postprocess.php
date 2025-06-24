@@ -2,7 +2,6 @@
 
 use PhpCsFixer\Runner\Parallel\ParallelConfig;
 use PhpCsFixerCustomFixers\Fixer\MultilinePromotedPropertiesFixer;
-use PhpCsFixerCustomFixers\Fixer\PhpdocSingleLineVarFixer;
 use PhpCsFixerCustomFixers\Fixer\PromotedConstructorPropertyFixer;
 use PhpCsFixerCustomFixers\Fixers;
 
