@@ -163,21 +163,21 @@ class CodeGenerator
                     if ($fieldDef->mayBeNull) {
                         if ('array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    (isset($array[\'' . $arg . '\']) ? array_map(fn($x) => TdSchemaRegistry::fromArray($x), $array[\'' . $arg . '\']) : null),'
+                                '    (isset($array[\'' . $arg . '\']) ? array_map(static fn($x) => TdSchemaRegistry::fromArray($x), $array[\'' . $arg . '\']) : null),'
                             );
 
                             $serialize->addBody(
                                 '    (isset($this->' . $fieldDef->name .
-                                ') ? array_map(fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . ') : null),'
+                                ') ? array_map(static fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . ') : null),'
                             );
                         } elseif ('array_array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    (isset($array[\'' . $arg . '\']) ? array_map(fn($x) => '
-                                . 'array_map(fn($y) => TdSchemaRegistry::fromArray($y), $x), $array[\'' . $arg . '\']) : null),'
+                                '    (isset($array[\'' . $arg . '\']) ? array_map(static fn($x) => '
+                                . 'array_map(static fn($y) => TdSchemaRegistry::fromArray($y), $x), $array[\'' . $arg . '\']) : null),'
                             );
 
                             $serialize->addBody(
-                                '    (isset($this->' . $fieldDef->name . ') ? array_map(fn($x) => array_map(fn($y) => $y->typeSerialize(), $x), $this->'
+                                '    (isset($this->' . $fieldDef->name . ') ? array_map(static fn($x) => array_map(static fn($y) => $y->typeSerialize(), $x), $this->'
                                 . $fieldDef->name . ') : null),'
                             );
                         } else {
@@ -194,19 +194,19 @@ class CodeGenerator
                     } else {
                         if ('array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    array_map(fn($x) => TdSchemaRegistry::fromArray($x), $array[\'' . $arg . '\']),'
+                                '    array_map(static fn($x) => TdSchemaRegistry::fromArray($x), $array[\'' . $arg . '\']),'
                             );
 
                             $serialize->addBody(
-                                '    array_map(fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . '),'
+                                '    array_map(static fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . '),'
                             );
                         } elseif ('array_array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    array_map(fn($x) => array_map(fn($y) => TdSchemaRegistry::fromArray($y), $x), $array[\'' . $arg . '\']),'
+                                '    array_map(static fn($x) => array_map(static fn($y) => TdSchemaRegistry::fromArray($y), $x), $array[\'' . $arg . '\']),'
                             );
 
                             $serialize->addBody(
-                                '    array_map(fn($x) => array_map(fn($y) => $y->typeSerialize(), $x), $this->' . $fieldDef->name . '),'
+                                '    array_map(static fn($x) => array_map(static fn($y) => $y->typeSerialize(), $x), $this->' . $fieldDef->name . '),'
                             );
                         } else {
                             $fromArray->addBody(
