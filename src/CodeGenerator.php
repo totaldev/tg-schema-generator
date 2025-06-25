@@ -132,6 +132,7 @@ class CodeGenerator
             } elseif ($arrayNestLevels > 2) {
                 throw new \InvalidArgumentException('Vector of higher than 2 lvl deep');
             }
+            $this->analyzeFieldDef($fieldDef);
 
             $class->addProperty($fieldDef->name)
                 ->setProtected()
@@ -141,79 +142,83 @@ class CodeGenerator
                 ->addComment('')
                 ->addComment('@var ' . $fieldDef->type . ($fieldDef->mayBeNull ? '|null' : ''));
 
-            $this->constructorParametr($constructor, $fieldDef, $type);
+            $constructorParameter = $constructor
+                ->addParameter($fieldDef->name)
+                ->setType($type)
+                ->setNullable($fieldDef->mayBeNull);
+            if ($fieldDef->hasDefaultValue()) {
+                $constructorParameter->setDefaultValue($fieldDef->getDefaultValue());
+            }
 
             $constructor->addBody('$this->' . $fieldDef->name . ' = $' . $fieldDef->name . ';');
 
             [$rawType] = explode('[', $fieldDef->type);
-
+            $arg = Utils::camelCaseToUnderscore($fieldDef->name);
+            $arrayArg = "\$array['$arg']";
+            $propertyArg = "\$this->$fieldDef->name";
             switch ($rawType) {
                 case 'string':
                 case 'int':
                 case 'bool':
                 case 'float':
-                    $fromArray->addBody('    $array[\'' . $fieldDef->rawName . '\'],');
-                    $serialize->addBody('    \'' . $fieldDef->rawName . '\' => $this->' . $fieldDef->name . ',');
+                    $fromArray->addBody('    ' . $arrayArg . ',');
+                    $serialize->addBody('    \'' . $arg . '\' => ' . $propertyArg . ',');
                     break;
 
                 default:
                     $phpNamespace->addUse($this->calculateNamespace($rawType) . '\\' . $rawType);
-                    $arg = Utils::camelCaseToUnderscore($fieldDef->name);
                     if ($fieldDef->mayBeNull) {
                         if ('array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    (isset($array[\'' . $arg . '\']) ? array_map(static fn($x) => TdSchemaRegistry::fromArray($x), $array[\'' . $arg . '\']) : null),'
+                                '    (isset(' . $arrayArg . ') ? array_map(static fn($x) => TdSchemaRegistry::fromArray($x), ' . $arrayArg . ') : null),'
                             );
 
                             $serialize->addBody(
-                                '    (isset($this->' . $fieldDef->name .
-                                ') ? array_map(static fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . ') : null),'
+                                '    (isset(' . $propertyArg . ') ? array_map(static fn($x) => $x->typeSerialize(), ' . $propertyArg . ') : null),'
                             );
                         } elseif ('array_array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    (isset($array[\'' . $arg . '\']) ? array_map(static fn($x) => '
-                                . 'array_map(static fn($y) => TdSchemaRegistry::fromArray($y), $x), $array[\'' . $arg . '\']) : null),'
+                                '    (isset(' . $arrayArg . ') ? array_map(static fn($x) => '
+                                . 'array_map(static fn($y) => TdSchemaRegistry::fromArray($y), $x), ' . $arrayArg . ') : null),'
                             );
 
                             $serialize->addBody(
-                                '    (isset($this->' . $fieldDef->name . ') ? array_map(static fn($x) => array_map(static fn($y) => $y->typeSerialize(), $x), $this->'
-                                . $fieldDef->name . ') : null),'
+                                '    (isset(' . $propertyArg . ') ? array_map(static fn($x) => array_map(static fn($y) => $y->typeSerialize(), $x), '
+                                . $propertyArg . ') : null),'
                             );
                         } else {
                             $fromArray->addBody(
-                                '    (isset($array[\'' . $arg . '\']) ? ' .
-                                'TdSchemaRegistry::fromArray($array[\'' . $arg . '\']) : null),'
+                                '    (isset(' . $arrayArg . ') ? TdSchemaRegistry::fromArray(' . $arrayArg . ') : null),'
                             );
 
                             $serialize->addBody(
-                                '    \'' . $fieldDef->rawName . '\' => $this->' .
-                                $fieldDef->name . ' ?? null,'
+                                '    \'' . $fieldDef->rawName . '\' => ' . $propertyArg . ' ?? null,'
                             );
                         }
                     } else {
                         if ('array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    array_map(static fn($x) => TdSchemaRegistry::fromArray($x), $array[\'' . $arg . '\']),'
+                                '    array_map(static fn($x) => TdSchemaRegistry::fromArray($x), ' . $arrayArg . '),'
                             );
 
                             $serialize->addBody(
-                                '    array_map(static fn($x) => $x->typeSerialize(), $this->' . $fieldDef->name . '),'
+                                '    array_map(static fn($x) => $x->typeSerialize(), ' . $propertyArg . '),'
                             );
                         } elseif ('array_array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    array_map(static fn($x) => array_map(static fn($y) => TdSchemaRegistry::fromArray($y), $x), $array[\'' . $arg . '\']),'
+                                '    array_map(static fn($x) => array_map(static fn($y) => TdSchemaRegistry::fromArray($y), $x), ' . $arrayArg . '),'
                             );
 
                             $serialize->addBody(
-                                '    array_map(static fn($x) => array_map(static fn($y) => $y->typeSerialize(), $x), $this->' . $fieldDef->name . '),'
+                                '    array_map(static fn($x) => array_map(static fn($y) => $y->typeSerialize(), $x), ' . $propertyArg . '),'
                             );
                         } else {
                             $fromArray->addBody(
-                                '    TdSchemaRegistry::fromArray($array[\'' . $arg . '\']),'
+                                '    TdSchemaRegistry::fromArray(' . $arrayArg . '),'
                             );
 
                             $serialize->addBody(
-                                '    \'' . $arg . '\' => $this->' . $fieldDef->name . '->typeSerialize(),'
+                                '    \'' . $arg . '\' => ' . $propertyArg . '->typeSerialize(),'
                             );
                         }
                     }
@@ -234,26 +239,6 @@ class CodeGenerator
         }
 
         return $phpFile;
-    }
-
-    private function constructorParametr(Method $constructor, FieldDefinition $fieldDef, ?string $type): void
-    {
-        $constructorField = $constructor->addParameter($fieldDef->name)
-            ->setType($type)
-            ->setNullable($fieldDef->mayBeNull);
-
-        if(preg_match('/.* pass null .* default/', $fieldDef->doc)) {
-            $constructorField
-                ->setNullable()
-                ->setDefaultValue(null);
-        } elseif(preg_match('/.* pass -1 .* default/', $fieldDef->doc)) {
-            $constructorField
-                ->setDefaultValue(-1);
-        } elseif(preg_match('/.* pass an empty string .* default/', $fieldDef->doc)) {
-            $constructorField
-                ->setDefaultValue('');
-        }
-
     }
 
     public function generateTdFunction(): PhpFile
@@ -423,6 +408,18 @@ class CodeGenerator
             ->setReturnType('array');
 
         return $phpFile;
+    }
+
+    private function analyzeFieldDef(FieldDefinition $fieldDef): void
+    {
+        if (preg_match('/.* pass null .* default/', $fieldDef->doc)) {
+            $fieldDef->mayBeNull = true;
+            $fieldDef->setDefaultValue('null');
+        } elseif (preg_match('/.* pass -1 .* default/', $fieldDef->doc)) {
+            $fieldDef->setDefaultValue(-1);
+        } elseif (preg_match('/.* pass an empty string .* default/', $fieldDef->doc)) {
+            $fieldDef->setDefaultValue('');
+        }
     }
 
     private function calculateNamespace(string $className): string
