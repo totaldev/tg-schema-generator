@@ -11,6 +11,7 @@ use Nette\PhpGenerator\PhpFile;
 use Nette\PhpGenerator\PsrPrinter;
 use PhpCsFixer\Utils;
 use totaldev\SchemaGenerator\Model\ClassDefinition;
+use totaldev\SchemaGenerator\Model\FieldDefinition;
 
 /**
  * @author  Aurimas Niekis <aurimas@niekis.lt>
@@ -140,9 +141,7 @@ class CodeGenerator
                 ->addComment('')
                 ->addComment('@var ' . $fieldDef->type . ($fieldDef->mayBeNull ? '|null' : ''));
 
-            $constructorField = $constructor->addParameter($fieldDef->name)
-                ->setType($type)
-                ->setNullable($fieldDef->mayBeNull);
+            $this->constructorParametr($constructor, $fieldDef, $type);
 
             $constructor->addBody('$this->' . $fieldDef->name . ' = $' . $fieldDef->name . ';');
 
@@ -235,6 +234,26 @@ class CodeGenerator
         }
 
         return $phpFile;
+    }
+
+    private function constructorParametr(Method $constructor, FieldDefinition $fieldDef, ?string $type): void
+    {
+        $constructorField = $constructor->addParameter($fieldDef->name)
+            ->setType($type)
+            ->setNullable($fieldDef->mayBeNull);
+
+        if(preg_match('/.* pass null .* default/', $fieldDef->doc)) {
+            $constructorField
+                ->setNullable()
+                ->setDefaultValue(null);
+        } elseif(preg_match('/.* pass -1 .* default/', $fieldDef->doc)) {
+            $constructorField
+                ->setDefaultValue(-1);
+        } elseif(preg_match('/.* pass an empty string .* default/', $fieldDef->doc)) {
+            $constructorField
+                ->setDefaultValue('');
+        }
+
     }
 
     public function generateTdFunction(): PhpFile
