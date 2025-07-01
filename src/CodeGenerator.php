@@ -161,8 +161,8 @@ class CodeGenerator
                 case 'int':
                 case 'bool':
                 case 'float':
-                    $fromArray->addBody('    ' . $arrayArg . ',');
-                    $serialize->addBody('    \'' . $arg . '\' => ' . $propertyArg . ',');
+                    $fromArray->addBody("    $arrayArg,");
+                    $serialize->addBody("    '$arg' => $propertyArg,");
                     break;
 
                 default:
@@ -170,55 +170,53 @@ class CodeGenerator
                     if ($fieldDef->mayBeNull) {
                         if ('array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    (isset(' . $arrayArg . ') ? array_map(static fn($x) => TdSchemaRegistry::fromArray($x), ' . $arrayArg . ') : null),'
+                                "    (isset($arrayArg) ? array_map(static fn(\$x) => TdSchemaRegistry::fromArray(\$x), $arrayArg) : null),"
                             );
 
                             $serialize->addBody(
-                                '    (isset(' . $propertyArg . ') ? array_map(static fn($x) => $x->typeSerialize(), ' . $propertyArg . ') : null),'
+                                "    '$arg' => (isset($propertyArg) ? array_map(static fn(\$x) => \$x->typeSerialize(), $propertyArg) : null),"
                             );
                         } elseif ('array_array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    (isset(' . $arrayArg . ') ? array_map(static fn($x) => '
-                                . 'array_map(static fn($y) => TdSchemaRegistry::fromArray($y), $x), ' . $arrayArg . ') : null),'
+                                "    (isset($arrayArg) ? array_map(static fn(\$x) => array_map(static fn(\$y) => TdSchemaRegistry::fromArray(\$y), \$x), $arrayArg) : null),"
                             );
 
                             $serialize->addBody(
-                                '    (isset(' . $propertyArg . ') ? array_map(static fn($x) => array_map(static fn($y) => $y->typeSerialize(), $x), '
-                                . $propertyArg . ') : null),'
+                                "    '$arg' => (isset($propertyArg) ? array_map(static fn(\$x) => array_map(static fn(\$y) => \$y->typeSerialize(), \$x), $propertyArg) : null),"
                             );
                         } else {
                             $fromArray->addBody(
-                                '    (isset(' . $arrayArg . ') ? TdSchemaRegistry::fromArray(' . $arrayArg . ') : null),'
+                                "    (isset($arrayArg) ? TdSchemaRegistry::fromArray($arrayArg) : null),"
                             );
 
                             $serialize->addBody(
-                                '    \'' . $fieldDef->rawName . '\' => ' . $propertyArg . ' ?? null,'
+                                "    '$arg' => $propertyArg ?? null,"
                             );
                         }
                     } else {
                         if ('array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    array_map(static fn($x) => TdSchemaRegistry::fromArray($x), ' . $arrayArg . '),'
+                                "    array_map(static fn(\$x) => TdSchemaRegistry::fromArray(\$x), $arrayArg),"
                             );
 
                             $serialize->addBody(
-                                '    array_map(static fn($x) => $x->typeSerialize(), ' . $propertyArg . '),'
+                                "    '$arg' => array_map(static fn(\$x) => \$x->typeSerialize(), $propertyArg),"
                             );
                         } elseif ('array_array' === $typeStyle) {
                             $fromArray->addBody(
-                                '    array_map(static fn($x) => array_map(static fn($y) => TdSchemaRegistry::fromArray($y), $x), ' . $arrayArg . '),'
+                                "    array_map(static fn(\$x) => array_map(static fn(\$y) => TdSchemaRegistry::fromArray(\$y), \$x), $arrayArg),"
                             );
 
                             $serialize->addBody(
-                                '    array_map(static fn($x) => array_map(static fn($y) => $y->typeSerialize(), $x), ' . $propertyArg . '),'
+                                "    '$arg' => array_map(static fn(\$x) => array_map(static fn(\$y) => \$y->typeSerialize(), \$x), $propertyArg),"
                             );
                         } else {
                             $fromArray->addBody(
-                                '    TdSchemaRegistry::fromArray(' . $arrayArg . '),'
+                                "    TdSchemaRegistry::fromArray($arrayArg),"
                             );
 
                             $serialize->addBody(
-                                '    \'' . $arg . '\' => ' . $propertyArg . '->typeSerialize(),'
+                                "    '$arg' => {$propertyArg}->typeSerialize(),"
                             );
                         }
                     }
