@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace totaldev\SchemaGenerator;
 
+use Nette\PhpGenerator\Attribute;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\Method;
 use Nette\PhpGenerator\Parameter;
@@ -89,7 +90,8 @@ class CodeGenerator
             ->addComment($classDef->classDocs);
 
         $class->addConstant('TYPE_NAME', $classDef->typeName)
-            ->setPublic();
+            ->setPublic()
+            ->setType('string');
 
         $constructor = $class->addMethod('__construct')
             ->setPublic();
@@ -225,9 +227,18 @@ class CodeGenerator
             $getter = $class->addMethod('get' . ucfirst($fieldDef->name))
                 ->setPublic()
                 ->setReturnType($type)
-                ->setReturnNullable($fieldDef->mayBeNull);
+                ->setReturnNullable($fieldDef->mayBeNull)
+                ->addBody('return $this->' . $fieldDef->name . ';');
 
-            $getter->addBody('return $this->' . $fieldDef->name . ';');
+            $setter = $class->addMethod('set' . ucfirst($fieldDef->name))
+                ->setParameters([
+                    new Parameter('value')
+                        ->setType($type)
+                        ->setNullable($fieldDef->mayBeNull),
+                ])
+                ->setPublic()
+                ->setReturnType('static')
+                ->addBody('$this->' . $fieldDef->name . ' = $value; return $this;');
         }
 
         if (count($classDef->fields) > 0) {
@@ -269,7 +280,8 @@ class CodeGenerator
             ->setAbstract();
 
         $objectClass->addConstant('TYPE_NAME', '_tdObject')
-            ->setPublic();
+            ->setPublic()
+            ->setType('string');
 
         $objectClass->addProperty('tdExtra', new Literal('null'))
             ->setType('string')
@@ -410,7 +422,7 @@ class CodeGenerator
 
     private function analyzeFieldDef(FieldDefinition $fieldDef): void
     {
-        if (preg_match('/.* pass null .* default/', $fieldDef->doc)) {
+        if (preg_match('/.* pass null .*/', $fieldDef->doc)) {
             $fieldDef->mayBeNull = true;
             $fieldDef->setDefaultValue('null');
         } elseif (preg_match('/.* pass -1 .* default/', $fieldDef->doc)) {
