@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace totaldev\SchemaGenerator;
 
-use Nette\PhpGenerator\Attribute;
 use Nette\PhpGenerator\Literal;
 use Nette\PhpGenerator\Method;
 use Nette\PhpGenerator\Parameter;
@@ -113,14 +112,20 @@ class CodeGenerator
 
         if (count($classDef->fields) > 0) {
             $fromArray->addBody('return new static(');
-            $serialize->addBody('return [');
-            $serialize->addBody('    \'@type\' => static::TYPE_NAME,');
+            $serializeBody = "return [\n    '@type' => static::TYPE_NAME,\n";
         } else {
             $fromArray->addBody('return new static();');
             $serialize->addBody('return [\'@type\' => static::TYPE_NAME];');
         }
 
-        foreach ($classDef->fields as $fieldDef) {
+        // Sort fields alphabetically by TL key name (snake_case) for stable, readable output
+        $fields = $classDef->fields;
+        usort($fields, static fn (FieldDefinition $a, FieldDefinition $b) => strcasecmp(
+            Utils::camelCaseToUnderscore($a->name),
+            Utils::camelCaseToUnderscore($b->name)
+        ));
+
+        foreach ($fields as $fieldDef) {
             $typeStyle = $fieldDef->type;
             $type = $fieldDef->type;
 
@@ -163,8 +168,8 @@ class CodeGenerator
                 case 'int':
                 case 'bool':
                 case 'float':
-                    $fromArray->addBody("    $arrayArg,");
-                    $serialize->addBody("    '$arg' => $propertyArg,");
+                    $fromArray->addBody("    {$fieldDef->name}: $arrayArg,");
+                    $serializeBody .= "    '$arg' => $propertyArg,\n";
                     break;
 
                 default:
@@ -172,54 +177,42 @@ class CodeGenerator
                     if ($fieldDef->mayBeNull) {
                         if ('array' === $typeStyle) {
                             $fromArray->addBody(
-                                "    (isset($arrayArg) ? array_map(static fn(\$x) => TdSchemaRegistry::fromArray(\$x), $arrayArg) : null),"
+                                "    {$fieldDef->name}: (isset($arrayArg) ? array_map(static fn(\$x) => TdSchemaRegistry::fromArray(\$x), $arrayArg) : null),"
                             );
 
-                            $serialize->addBody(
-                                "    '$arg' => (isset($propertyArg) ? array_map(static fn(\$x) => \$x->typeSerialize(), $propertyArg) : null),"
-                            );
+                            $serializeBody .= "    '$arg' => (isset($propertyArg) ? array_map(static fn(\$x) => \$x->jsonSerialize(), $propertyArg) : null),\n";
                         } elseif ('array_array' === $typeStyle) {
                             $fromArray->addBody(
-                                "    (isset($arrayArg) ? array_map(static fn(\$x) => array_map(static fn(\$y) => TdSchemaRegistry::fromArray(\$y), \$x), $arrayArg) : null),"
+                                "    {$fieldDef->name}: (isset($arrayArg) ? array_map(static fn(\$x) => array_map(static fn(\$y) => TdSchemaRegistry::fromArray(\$y), \$x), $arrayArg) : null),"
                             );
 
-                            $serialize->addBody(
-                                "    '$arg' => (isset($propertyArg) ? array_map(static fn(\$x) => array_map(static fn(\$y) => \$y->typeSerialize(), \$x), $propertyArg) : null),"
-                            );
+                            $serializeBody .= "    '$arg' => (isset($propertyArg) ? array_map(static fn(\$x) => array_map(static fn(\$y) => \$y->jsonSerialize(), \$x), $propertyArg) : null),\n";
                         } else {
                             $fromArray->addBody(
-                                "    (isset($arrayArg) ? TdSchemaRegistry::fromArray($arrayArg) : null),"
+                                "    {$fieldDef->name}: (isset($arrayArg) ? TdSchemaRegistry::fromArray($arrayArg) : null),"
                             );
 
-                            $serialize->addBody(
-                                "    '$arg' => $propertyArg ?? null,"
-                            );
+                            $serializeBody .= "    '$arg' => ($propertyArg !== null ? " . $propertyArg . "->jsonSerialize() : null),\n";
                         }
                     } else {
                         if ('array' === $typeStyle) {
                             $fromArray->addBody(
-                                "    array_map(static fn(\$x) => TdSchemaRegistry::fromArray(\$x), $arrayArg),"
+                                "    {$fieldDef->name}: array_map(static fn(\$x) => TdSchemaRegistry::fromArray(\$x), $arrayArg),"
                             );
 
-                            $serialize->addBody(
-                                "    '$arg' => array_map(static fn(\$x) => \$x->typeSerialize(), $propertyArg),"
-                            );
+                            $serializeBody .= "    '$arg' => array_map(static fn(\$x) => \$x->jsonSerialize(), $propertyArg),\n";
                         } elseif ('array_array' === $typeStyle) {
                             $fromArray->addBody(
-                                "    array_map(static fn(\$x) => array_map(static fn(\$y) => TdSchemaRegistry::fromArray(\$y), \$x), $arrayArg),"
+                                "    {$fieldDef->name}: array_map(static fn(\$x) => array_map(static fn(\$y) => TdSchemaRegistry::fromArray(\$y), \$x), $arrayArg),"
                             );
 
-                            $serialize->addBody(
-                                "    '$arg' => array_map(static fn(\$x) => array_map(static fn(\$y) => \$y->typeSerialize(), \$x), $propertyArg),"
-                            );
+                            $serializeBody .= "    '$arg' => array_map(static fn(\$x) => array_map(static fn(\$y) => \$y->jsonSerialize(), \$x), $propertyArg),\n";
                         } else {
                             $fromArray->addBody(
-                                "    TdSchemaRegistry::fromArray($arrayArg),"
+                                "    {$fieldDef->name}: TdSchemaRegistry::fromArray($arrayArg),"
                             );
 
-                            $serialize->addBody(
-                                "    '$arg' => {$propertyArg}->typeSerialize(),"
-                            );
+                            $serializeBody .= "    '$arg' => " . $propertyArg . "->jsonSerialize(),\n";
                         }
                     }
             }
@@ -244,7 +237,8 @@ class CodeGenerator
         if (count($classDef->fields) > 0) {
             $this->sortMethodParameters($constructor);
             $fromArray->addBody(');');
-            $serialize->addBody('];');
+            $serializeBody .= "];\n";
+            $serialize->setBody($serializeBody);
         }
 
         return $phpFile;

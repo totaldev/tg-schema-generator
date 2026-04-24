@@ -27,6 +27,11 @@ class SchemaParser
         private OutputInterface $output,
         ?string $schemaFile = null,
     ) {
+        if (!is_file($schemaFile)) {
+            throw new \InvalidArgumentException(
+                sprintf('Schema file "%s" does not exist or is not a regular file', $schemaFile)
+            );
+        }
         $this->rawSchema = file_get_contents($schemaFile);
         $this->classes = [];
         $this->dumper = new Dumper();
