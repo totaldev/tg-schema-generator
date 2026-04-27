@@ -444,7 +444,7 @@ class CodeGenerator
     {
         $parameters = $method->getParameters();
 
-        // Сортировка: параметры без дефолтных значений идут первыми
+        // Сортировка: параметры без дефолтных значений идут первыми, внутри каждой группы — по алфавиту
         usort($parameters, static function (Parameter $a, Parameter $b) {
             // Если у $a есть значение по умолчанию, а у $b нет → $b должен идти первым
             if ($a->hasDefaultValue() && !$b->hasDefaultValue()) {
@@ -455,8 +455,8 @@ class CodeGenerator
                 return -1;
             }
 
-            // Иначе сохраняем исходный порядок
-            return 0;
+            // Внутри группы сортируем по имени параметра по алфавиту
+            return strcasecmp($a->getName(), $b->getName());
         });
 
         $method->setParameters($parameters);
